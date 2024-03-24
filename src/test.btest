@@ -1,0 +1,13 @@
+@suite META describes "A language that can do almost anything." {
+	@method test {
+		execute "./bash-test/sleep.bash"
+	}
+
+	@case "Addition" alias add requires test {
+		execute "./bash-test/sleep.bash"
+
+		@expect "return code to be zero" {
+			assert $? equals 0
+		}
+	}
+}

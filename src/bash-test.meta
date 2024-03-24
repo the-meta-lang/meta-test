@@ -1,0 +1,106 @@
+.SYNTAX BTEST
+
+BTEST = 
+.UF("#!/usr/bin/bash" .NL)
+.UF("suites=0" .NL)
+.UF("cases=0" .NL)
+.UF("cases_failed=0" .NL)
+.UF("suites_failed=0" .NL)
+.UF("start_time=$(date +%s%N | cut -b1-13)" .NL)
+.UF("bold_green=$(tput bold; tput setaf 2)" .NL)
+.UF("bold_red=$(tput bold; tput setaf 1)" .NL)
+.UF("reset=$(tput sgr0)" .NL)
+.UF("gray=$(tput setaf 8)" .NL .NL)
+$(SUITE)
+.UF("generate_postamble" .NL);
+
+// ---------------------------------- Suite ------------------------------------
+
+SUITE = "@suite" (ID) 
+	.UF("# Suite " * .NL)
+	.UF("suites=$((suites+1))" .NL)
+	.UF("echo -e '\x1b[37;46;1m[SUITE]\x1b[0m " *)
+		"describes" RAW 
+	.UF(" - " * "'" .NL) "{" 
+		$(CASE | METHOD)
+	"}";
+
+// ---------------------------------- Case -------------------------------------
+
+CASE = "@case" RAW 
+	.UF("echo -e '\x1b[37;43;1m[TEST]\x1b[0m " * "'" .NL)
+	$(("alias" ID) | ("requires" ID))
+	"{" $(COMMAND) "}";
+
+// --------------------------------- Methods -----------------------------------
+// Functions that can be pulled in as requirements for a test case.
+
+METHOD = "@method" RAW ID
+	"{" $(COMMAND) "}";
+
+// -------------------------------- Commands -----------------------------------
+
+COMMAND = ("execute" STRING 
+		.UF("stdout=$(execute " * ")" .NL)
+		.UF("exit_code=$?" .NL)
+	| ("@expect"
+		RAW % % "{"
+		$("assert" EXPECT)
+		"}"));
+
+// --------------------------------- Expect ------------------------------------
+
+EXPECT = 
+	.UF("cases=$((cases+1))" .NL) 
+	.UF("if ! [ ") 
+	(((NUMBER | STRING) .UF(*)) | VARIABLE) 
+	("equals" .UF(" -eq ")) 
+	(((NUMBER | STRING) .UF(*)) | VARIABLE)
+	.UF(" ]; then" .NL)
+	.UF(.TB "echo -e '\r\t❌ expected " % "'" .NL)
+	.UF(.TB "cases_failed=$(($cases_failed+1))" .NL)
+	.UF("else" .NL)
+	.UF(.TB "echo -e '\r\t✔ expect " % "'" .NL)
+	.UF("fi" .NL);
+
+// -------------------------------- Arguments ----------------------------------
+
+ARGUMENT = NUMBER | STRING | RAW;
+
+// -------------------------------- Variables ----------------------------------
+
+VARIABLE = EXIT_CODE;
+
+EXIT_CODE = "$?" .UF("$exit_code");
+
+// -------------------------------- Comments -----------------------------------
+
+COMMENT = "//" .NOT 10;
+
+// ---------------------------- Token Definitions ------------------------------
+
+.TOKENS
+
+// Remove any leading whitespace
+PREFIX = $.ANY(32!9!13!10);
+
+// Match numbers (sequence of digits)
+NUMBER = PREFIX .TOKEN DIGIT $DIGIT .DELTOK;
+
+// Match any digit
+DIGIT  = .ANY(48:57);
+
+// Match any sequence of characters and digits, may not start with a digit.
+ID     = PREFIX .RESERVED("import") .TOKEN ALPHA $(ALPHA | DIGIT) .DELTOK;
+
+// Matches any uppercase or lowercase character as well as underscore
+ALPHA  = .ANY(65:90!95!97:122) ;
+
+// Matches anything but double quotes that is enclosed by double quotes.
+// e.g. "hello world" but not "awd "inner" "
+STRING = PREFIX .TOKEN .ANY(34) $.ANYBUT(13!10!34) .ANY(34) .DELTOK;
+
+// Same as STRING but does not capture the double quotes.
+RAW 	 = PREFIX .ANY(34) .TOKEN $.ANYBUT(13!10!34) .DELTOK .ANY(34);
+
+DOLLAR_SIGN_VARS = PREFIX .TOKEN .ANY("$") (NUMBER | .ANY("@"!"*"!"#"!"-"!"$"!"_"!"?"!"!")) .DELTOK;
